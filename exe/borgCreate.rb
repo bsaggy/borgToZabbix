@@ -9,7 +9,7 @@ require 'open3'
 
 opts = Optimist::options do
   banner <<-EOS
-A wrapper script for Borg 1.1.15
+A wrapper script for Borg Create 1.1.15
 
 Example usage - will backup everything under / except for /proc on myserver mounted at /mnt/myserver to borg repo /mnt/backup/borg/myserver with archive name 20230319T2245
   Borg results will be sent to the zabbix server/proxy at 10.0.0.20 which is responsible for monitoring the host called myserver
@@ -25,10 +25,11 @@ EOS
   opt :zabhost, "Zabbix host to attach data to", :type => :string
   opt :zabproxy, "Zabbix proxy to send data to", :type => :string, :required => true
   opt :zabsender, "Path to Zabbix Sender", :type => :string, :default => "/usr/bin/zabbix_sender"
-  opt :borgparams, "Additional Borg parameters; permanent options are --verbose --stats --json --show-rc", :type => :string
-  opt :borgsrc, "Source directory for Borg backup to read from", :type => :string, :required => true
-  opt :borgrepo, "Destination for Borg backup repository", :type => :string, :required => true
-  opt :borgarchive, "Name of borg Archive - default is current datetimestamp", :default => DateTime.now.strftime('%Y%m%dT%H%M%S')
+  opt :'common-opts', "Additional Common Options to apply as a quoted string", :type => :string
+  opt :'borg-params', "Additional Borg parameters; permanent options are --verbose --stats --json --show-rc", :type => :string
+  opt :'borg-path', "Source directory for Borg backup to read from", :type => :string, :required => true
+  opt :'borg-repo', "Destination for Borg backup repository", :type => :string, :required => true
+  opt :'borg-archive', "Name of Borg Archive - default is current datetimestamp", :default => DateTime.now.strftime('%Y%m%dT%H%M%S')
 end
 
 # Capture the stdout, stderr, and status of Borg

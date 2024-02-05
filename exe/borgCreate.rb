@@ -6,21 +6,20 @@ require 'optimist'
 require 'date'
 require 'open3'
 
-
 opts = Optimist::options do
   banner <<-EOS
 A wrapper script for Borg Create 1.1.15
 
-Example usage - will backup everything under / except for /proc on myserver mounted at /mnt/myserver to borg repo /mnt/backup/borg/myserver with archive name 20230319T2245
+Example usage - will backup everything under / except for /proc on myserver mounted at /mnt/myserver to borg repo /mnt/backup/borg/myserver with archive name 20230319T224500
   Borg results will be sent to the zabbix server/proxy at 10.0.0.20 which is responsible for monitoring the host called myserver
 ./borgToZabbix.rb \\
 --zabhost "myserver" \\
 --zabproxy "10.0.0.20" \\
 --zabsender "/usr/bin/zabbix_sender" \\
---borgparams "--compression lz4 --exclude '/mnt/myserver/proc/*'" \\
---borgsrc "/mnt/myserver" \\
---borgrepo "/mnt/backup/borg/myserver" \\
---borgacrhive "20230319T2245" \\
+--borg-params "--compression lz4 --exclude '/mnt/myserver/proc/*'" \\
+--borg-path "/mnt/myserver" \\
+--borg-repo "/mnt/backup/borg/myserver" \\
+--borg-archive "20230319T224500" \\
 EOS
   opt :zabhost, "Zabbix host to attach data to", :type => :string
   opt :zabproxy, "Zabbix proxy to send data to", :type => :string, :required => true
@@ -33,11 +32,11 @@ EOS
 end
 
 # Capture the stdout, stderr, and status of Borg
-stdout, stderr, status = Open3.capture3("sudo borg create --verbose --stats --json --show-rc #{opts[:borgparams]} #{opts[:borgrepo]}::#{opts[:borgarchive]} #{opts[:borgsrc]}")
+stdout, stderr, status = Open3.capture3("sudo borg create --verbose --stats --json --show-rc #{opts[:'borg-params']} #{opts[:'borg-repo']}::#{opts[:'borg-archive']} #{opts[:'borg-path']}")
 
 # Instantiate a Zabbix Sender Batch object and add data to it
 batch = Zabbix::Sender::Batch.new(hostname: opts[:zabhost])
-batch.addItemData(key: 'jsonRaw', value: JSON.parse(stdout).to_json)
+batch.addItemData(key: 'jsonRaw', value: JSON.parse(stdout).to_json) if not stdout.empty?
 batch.addItemData(key: 'exitStatus', value: status.exitstatus)
 
 # Send to Zabbix and output results and/or errors

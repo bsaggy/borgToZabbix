@@ -33,10 +33,11 @@ EOS
   opt :'borg-path', "Source directory for Borg backup to read from", :type => :string, :required => true
   opt :'borg-repo', "Destination for Borg backup repository", :type => :string, :required => true
   opt :'borg-archive', "Name of Borg Archive - default is current datetimestamp", :default => DateTime.now.strftime('%Y%m%dT%H%M%S')
+  opt :loglevel, "Extra logging", :type => :string, :default => "info"
 end
 
 log = Logging.logger(STDOUT)
-log.level = :info
+log.level = opts[:loglevel].to_sym
 # Set passphrase for password protected key
 ENV["BORG_PASSPHRASE"] = File.read(opts[:'pass-file']).chomp! if opts[:'pass-file'] and File.exists?(opts[:'pass-file'])
 
@@ -50,7 +51,10 @@ log.info("Running command:\n#{cmd}")
 begin
   # Capture the stdout, stderr, and status of Borg
   stdout, stderr, status = Open3.capture3(cmd)
-
+  log.debug(stdout)
+  log.debug(stderr)
+  log.debug(status)
+  
   # Instantiate a Zabbix Sender Batch object and add data to it
   batch = Zabbix::Sender::Batch.new(hostname: opts[:zabhost])
   batch.addItemData(key: 'jsonRaw', value: JSON.parse(stdout).to_json) if not stdout.empty?

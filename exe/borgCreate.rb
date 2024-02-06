@@ -47,7 +47,6 @@ sudo = nil
 opts[:sudo] ? (sudo = "sudo --preserve-env=BORG_PASSPHRASE ") : "" 
 cmd = "#{sudo}borg create --verbose --stats --json --show-rc #{opts[:'borg-params']} #{opts[:'borg-repo']}::#{opts[:'borg-archive']} #{opts[:'borg-path']}"
 log.info("Running command:\n#{cmd}")
-binding.pry
 begin
   # Capture the stdout, stderr, and status of Borg
   stdout, stderr, status = Open3.capture3(cmd)

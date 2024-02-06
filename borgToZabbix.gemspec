@@ -33,4 +33,6 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'optimist'
   spec.add_dependency 'date'
   spec.add_dependency 'open3'
+  spec.add_dependency 'logging'
+  spec.add_dependency 'pry-byebug'
 end

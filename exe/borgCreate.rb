@@ -5,6 +5,8 @@ require 'json'
 require 'optimist'
 require 'date'
 require 'open3'
+require 'logging'
+require 'pry-byebug'
 
 opts = Optimist::options do
   banner <<-EOS
@@ -25,6 +27,7 @@ EOS
   opt :zabproxy, "Zabbix proxy to send data to", :type => :string, :required => true
   opt :zabsender, "Path to Zabbix Sender", :type => :string, :default => "/usr/bin/zabbix_sender"
   opt :sudo, "Run borg as root, carrying over BORG_PASSPHRASE var. User must have passwordless sudo privileges.", :default => false
+  opt :'pass-file', "Path to file containing plain-text passphrase.", :type => :string
   opt :'common-opts', "Additional Common Options to apply as a quoted string", :type => :string
   opt :'borg-params', "Additional Borg parameters; permanent options are --verbose --stats --json --show-rc", :type => :string
   opt :'borg-path', "Source directory for Borg backup to read from", :type => :string, :required => true
@@ -32,19 +35,36 @@ EOS
   opt :'borg-archive', "Name of Borg Archive - default is current datetimestamp", :default => DateTime.now.strftime('%Y%m%dT%H%M%S')
 end
 
+log = Logging.logger(STDOUT)
+log.level = :info
+# Set passphrase for password protected key
+ENV["BORG_PASSPHRASE"] = File.read(opts[:'pass-file']).chomp! if opts[:'pass-file'] and File.exists?(opts[:'pass-file'])
+
+log.warn("Neither passphrase file or BORG_PASSPHRASE environment variable found.") if not ENV.key?("BORG_PASSPHRASE") #ENV["BORG_PASSPHRASE"].nil? and (opts[:'pass-file'].nil? or not File.exists?(opts[:'pass-file']))
+
 # Check for sudo
 sudo = nil
 opts[:sudo] ? (sudo = "sudo --preserve-env=BORG_PASSPHRASE ") : "" 
+cmd = "#{sudo}borg create --verbose --stats --json --show-rc #{opts[:'borg-params']} #{opts[:'borg-repo']}::#{opts[:'borg-archive']} #{opts[:'borg-path']}"
+log.info("Running command:\n#{cmd}")
+binding.pry
+begin
+  # Capture the stdout, stderr, and status of Borg
+  stdout, stderr, status = Open3.capture3(cmd)
 
-# Capture the stdout, stderr, and status of Borg
-stdout, stderr, status = Open3.capture3("#{sudo}borg create --verbose --stats --json --show-rc #{opts[:'borg-params']} #{opts[:'borg-repo']}::#{opts[:'borg-archive']} #{opts[:'borg-path']}")
+  # Instantiate a Zabbix Sender Batch object and add data to it
+  batch = Zabbix::Sender::Batch.new(hostname: opts[:zabhost])
+  batch.addItemData(key: 'jsonRaw', value: JSON.parse(stdout).to_json) if not stdout.empty?
+  batch.addItemData(key: 'exitStatus', value: status.exitstatus)
 
-# Instantiate a Zabbix Sender Batch object and add data to it
-batch = Zabbix::Sender::Batch.new(hostname: opts[:zabhost])
-batch.addItemData(key: 'jsonRaw', value: JSON.parse(stdout).to_json) if not stdout.empty?
-batch.addItemData(key: 'exitStatus', value: status.exitstatus)
+  # Send to Zabbix and output results and/or errors
+  sender = Zabbix::Sender::Pipe.new(proxy: opts[:zabproxy], path: opts[:zabsender])
+  puts sender.sendBatchAtomic(batch)
+  log.error(stderr) if status.exitstatus != 0
 
-# Send to Zabbix and output results and/or errors
-sender = Zabbix::Sender::Pipe.new(proxy: opts[:zabproxy], path: opts[:zabsender])
-puts sender.sendBatchAtomic(batch)
-puts stderr if status.exitstatus != 0
+rescue Exception => e
+  log.error(e)
+
+ensure
+  ENV.delete("BORG_PASSPHRASE")
+end

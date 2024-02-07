@@ -23,6 +23,7 @@ EOS
   opt :zabhost, "Zabbix host to attach data to", :type => :string
   opt :zabproxy, "Zabbix proxy to send data to", :type => :string, :required => true
   opt :zabsender, "Path to Zabbix Sender", :type => :string, :default => "/usr/bin/zabbix_sender"
+  opt :sudo, "Run borg as root, carrying over BORG_PASSPHRASE var. User must have passwordless sudo privileges.", :default => false
   opt :'common-opts', "Additional Common Options to apply as a quoted string", :type => :string
   opt :'borg-params', "Additional Borg Prune parameters as a quoted string; permanent options are --verbose --stats --show-rc", :type => :string
   opt :'dry-run', "do not change repository", :default => false
@@ -61,7 +62,10 @@ def GetBytes(byte_str)
   return byte_split.first.to_i * 1000 ** x
 end
 
-cmd = "sudo borg prune -v --stats --show-rc "
+# Check for sudo
+sudo = nil
+opts[:sudo] ? (sudo = "sudo --preserve-env=BORG_PASSPHRASE ") : ""
+cmd = "#{sudo}borg prune -v --stats --show-rc "
 cmd += "#{opts[:'dry-run'] ? '--list --dry-run' : nil} "
 cmd += "#{opts[:borgparams]} "
 cmd += "#{opts[:'keep-within'].nil? ? nil : ("--keep-within #{opts[:'keep-within']}")} "

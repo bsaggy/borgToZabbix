@@ -6,6 +6,7 @@ require 'optimist'
 require 'date'
 require 'open3'
 require 'pry-byebug'
+require 'logging'
 
 opts = Optimist::options do
   banner <<-EOS
@@ -24,6 +25,7 @@ EOS
   opt :zabproxy, "Zabbix proxy to send data to", :type => :string, :required => true
   opt :zabsender, "Path to Zabbix Sender", :type => :string, :default => "/usr/bin/zabbix_sender"
   opt :sudo, "Run borg as root, carrying over BORG_PASSPHRASE var. User must have passwordless sudo privileges.", :default => false
+  opt :'pass-file', "Path to file containing plain-text passphrase.", :type => :string
   opt :'common-opts', "Additional Common Options to apply as a quoted string", :type => :string
   opt :'borg-params', "Additional Borg Prune parameters as a quoted string; permanent options are --verbose --stats --show-rc", :type => :string
   opt :'dry-run', "do not change repository", :default => false
@@ -36,6 +38,7 @@ EOS
   opt :'keep-monthly', "number of monthly archives to keep", :type => :string
   opt :'keep-yearly', "number of yearly archives to keep", :type => :string
   opt :'borg-repo', "repository to prune", :type => :string, :required => true
+  opt :loglevel, "Extra logging", :type => :string, :default => "info"
 end
 
 # Capture the stdout, stderr, and status of Borg
@@ -62,6 +65,12 @@ def GetBytes(byte_str)
   return byte_split.first.to_i * 1000 ** x
 end
 
+log = Logging.logger(STDOUT)
+log.level = opts[:loglevel].to_sym
+# Set passphrase for password protected key
+ENV["BORG_PASSPHRASE"] = File.read(opts[:'pass-file']).chomp! if opts[:'pass-file'] and File.exists?(opts[:'pass-file'])
+log.warn("Neither passphrase file or BORG_PASSPHRASE environment variable found.") if not ENV.key?("BORG_PASSPHRASE")
+
 # Check for sudo
 sudo = nil
 opts[:sudo] ? (sudo = "sudo --preserve-env=BORG_PASSPHRASE ") : ""
@@ -80,15 +89,15 @@ cmd += "#{opts[:'borg-repo']}"
 
 # Clean up whitespace. This will cause issues if the borg repository has multiple consequtive whitespaces
 cmd = cmd.gsub(/\s+/,' ')
-puts "Calling command:\n#{cmd}"
+log.info("Calling command:\n#{cmd}")
 stdout, stderr, status = Open3.capture3(cmd)
 
 if opts[:'dry-run']
-  puts "Dry run only"
-  puts "stdout:\n#{stdout}\n\nstderr:\n#{stderr}\n\nstatus:\n#{status}"
+  log.info("Dry run only")
+  log.info("stdout:\n#{stdout}\n\nstderr:\n#{stderr}\n\nstatus:\n#{status}")
 else
-  puts "Real run"
-  puts "stdout:\n#{stdout}\n\nstderr:\n#{stderr}\n\nstatus:\n#{status}"
+  log.info("Real run")
+  log.info("stdout:\n#{stdout}\n\nstderr:\n#{stderr}\n\nstatus:\n#{status}")
 
   output = stderr.split("\n")
   output.shift
@@ -108,6 +117,6 @@ else
   sender = Zabbix::Sender::Pipe.new(proxy: opts[:zabproxy], path: opts[:zabsender])
   puts batch.to_senderline
   puts sender.sendBatchAtomic(batch)
-  puts stderr if status.exitstatus != 0
+  log.error(stderr) if status.exitstatus != 0
 end
 

@@ -41,7 +41,7 @@ log.level = opts[:loglevel].to_sym
 # Set passphrase for password protected key
 ENV["BORG_PASSPHRASE"] = File.read(opts[:'pass-file']).chomp! if opts[:'pass-file'] and File.exists?(opts[:'pass-file'])
 
-log.warn("Neither passphrase file or BORG_PASSPHRASE environment variable found.") if not ENV.key?("BORG_PASSPHRASE") #ENV["BORG_PASSPHRASE"].nil? and (opts[:'pass-file'].nil? or not File.exists?(opts[:'pass-file']))
+log.warn("Neither passphrase file or BORG_PASSPHRASE environment variable found.") if not ENV.key?("BORG_PASSPHRASE")
 
 # Check for sudo
 sudo = nil

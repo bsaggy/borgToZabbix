@@ -48,7 +48,8 @@ def GetBytes(byte_str)
   case byte_split.last
   when "B"
     return byte_split.first.to_i
-  when "KB"
+  when "kB"
+    # for some reason kB is used instead of KB
     x = 1
   when "MB"
     x = 2
